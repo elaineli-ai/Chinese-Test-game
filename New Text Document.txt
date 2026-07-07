@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>標點符號雙人打怪大對決</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --panel-bg: #162447;
+            --accent-color: #e43f5a;
+            --text-color: #ffffff;
+            --p1-color: #4ef037;
+            --p2-color: #00d2fc;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        /* 16:9 容器強制作業 */
+        #game-container {
+            width: 100vw;
+            height: 56.25vw; /* 16:9 比例 */
+            max-height: 100vh;
+            max-width: 177.78vh; /* 16:9 比例 */
+            margin: auto;
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            background: radial-gradient(circle, #24142c 0%, #0f081d 100%);
+            border: 4px solid #432b58;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 頂部工具列 */
+        .toolbar {
+            height: 8%;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 2px solid #432b58;
+            z-index: 10;
+        }
+
+        .game-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255,215,0,0.5);
+        }
+
+        .tool-btn {
+            background: #432b58;
+            color: white;
+            border: 1px solid #724c8f;
+            padding: 6px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+
+        .tool-btn:hover { background: #5c3b7a; }
+
+        /* 遊戲主畫面（分屏） */
+        .main-battlefield {
+            flex: 1;
+            display: flex;
+            height: 92%;
+        }
+
+        .player-side {
+            width: 50%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            position: relative;
+        }
+
+        #p1-side { border-right: 2px dashed #432b58; }
+
+        /* RPG 戰鬥畫面區 */
+        .rpg-arena {
+            height: 42%;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            position: relative;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        .character-zone {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .sprite {
+            font-size: 4.5rem;
+            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.5));
+            transition: transform 0.1s ease-in-out;
+        }
+
+        /* 動態效果 */
+        .attack-animation { transform: scale(1.3) translateX(30px); }
+        .p2-attack { transform: scale(1.3) translateX(-30px) !important; }
+        .hurt-animation { animation: shake 0.3s; filter: hue-rotate(90deg); }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(0px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(2px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(2px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        /* 浮動傷害數字 */
+        .damage-pop {
+            position: absolute;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff3333;
+            animation: floatUp 0.8s forwards;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .heal-pop { color: #33ff33 !important; }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-40px); }
+        }
+
+        /* 狀態欄 */
+        .status-bar {
+            width: 90%;
+            margin-top: 5px;
+        }
+
+        .bar-label {
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+
+        .hp-container {
+            width: 100%;
+            height: 12px;
+            background: #444;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #555;
+        }
+
+        .hp-fill {
+            height: 100%;
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+        .player-hp-bar { background: linear-gradient(90deg, #27ae60, #2ecc71); }
+        .monster-hp-bar { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+
+        .player-info-tags {
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            font-size: 0.9rem;
+        }
+        .score-tag { color: #ffd700; font-weight: bold; }
+        .combo-tag { 
+            background: #e43f5a; padding: 2px 6px; border-radius: 4px; 
+            font-size: 0.8rem; font-weight: bold; display: none;
+            animation: pulse 0.5s infinite alternate;
+        }
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+
+        /* 題目區 */
+        .question-box {
+            height: 20%;
+            background: rgba(0,0,0,0.4);
+            border: 2px solid #432b58;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            line-height: 1.5;
+            text-align: center;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+
+        .q-slot {
+            display: inline-block;
+            min-width: 32px;
+            height: 32px;
+            border-bottom: 3px solid #ffd700;
+            margin: 0 5px;
+            color: #ff4757;
+            font-weight: bold;
+            text-align: center;
+            vertical-align: middle;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px 4px 0 0;
+        }
+        .q-slot.active {
+            background: rgba(255, 215, 0, 0.2);
+            border-bottom-color: #2ecc71;
+        }
+
+        /* 標點符號與控制按鍵區 */
+        .input-area {
+            height: 35%;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-gap: 6px;
+        }
+
+        .btn-punct {
+            background: #162447;
+            color: white;
+            border: 2px solid #1f4068;
+            border-radius: 8px;
+            font-size: 1.6rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 0 #0f172a;
+        }
+        .btn-punct:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        .btn-control {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .btn-clear { background: #cca300; border-color: #e6b800; box-shadow: 0 4px 0 #997a00;}
+        .btn-submit { background: #27ae60; border-color: #2ecc71; box-shadow: 0 4px 0 #1e7e43;}
+
+        /* 蓋板視窗基底 */
+        .overlay-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 6, 22, 0.95);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .start-title {
+            font-size: 3.5rem;
+            color: #ffd700;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(255,215,0,0.4);
+        }
+
+        .instructions {
+            background: #162447;
+            border: 2px solid #432b58;
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 700px;
+            text-align: left;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .big-play-btn {
+            background: linear-gradient(135deg, #e43f5a, #b91c1c);
+            color: white;
+            padding: 15px 50px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(228,63,90,0.5);
+            transition: 0.2s;
+        }
+        .big-play-btn:hover { transform: scale(1.05); }
+
+        /* 結算畫面 */
+        .results-container {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 900px;
+            margin-bottom: 30px;
+        }
+        .result-card {
+            background: #162447;
+            border: 3px solid #432b58;
+            border-radius: 12px;
+            padding: 20px;
+            width: 45%;
+        }
+        .result-card h3 { margin-top: 0; font-size: 1.5rem; border-bottom: 2px solid #432b58; padding-bottom: 10px;}
+        .res-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 1.1rem;
+        }
+        .winner-tag {
+            color: #ffd700;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="toolbar">
+        <div class="game-title">⚔️ 標點符號打怪大對決 🔮</div>
+        <div>
+            <button class="tool-btn" id="mute-btn" onclick="toggleMute()">🔊 聲音：開</button>
+            <button class="tool-btn" onclick="toggleFullscreen()">全螢幕模式</button>
+        </div>
+    </div>
+
+    <div class="main-battlefield">
+        <div class="player-side" id="p1-side">
+            <div class="rpg-arena">
+                <div class="player-info-tags">
+                    <span class="score-tag">得分: <span id="p1-score">0</span></span>
+                    <span class="combo-tag" id="p1-combo-tag">3 連擊!</span>
+                </div>
+                <div class="character-zone">
+                    <div class="sprite" id="p1-sprite">🧙‍♂️</div>
+                    <div class="status-bar">
+                        <div class="bar-label"><span>小勇者 (玩家1)</span><span id="p1-hp-txt">100/100</span></div>
+                        <div class="hp-container"><div class="hp-fill player-hp-bar" id="p1-hp-bar"></div></div>
+                    </div>
+                </div>
+                <div class="character-zone">
+                    <div class="sprite" id="m1-sprite">👾</div>
+                    <div class="status-bar">
+                        <div class="bar-label"><span id="m1-name">小火怪</span><span id="m1-hp-txt">50/50</span></div>
+                        <div class="hp-container"><div class="hp-fill monster-hp-bar" id="m1-hp-bar"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="question-box" id="p1-q-box">載入題目中...</div>
+            <div class="input-area" id="p1-input-area"></div>
+        </div>
+
+        <div class="player-side" id="p2-side">
+            <div class="rpg-arena">
+                <div class="player-info-tags">
+                    <span class="score-tag">得分: <span id="p2-score">0</span></span>
+                    <span class="combo-tag" id="p2-combo-tag">3 連擊!</span>
+                </div>
+                <div class="character-zone">
+                    <div class="sprite" id="p2-sprite">🧝‍♀️</div>
+                    <div class="status-bar">
+                        <div class="bar-label"><span>小魔導 (玩家2)</span><span id="p2-hp-txt">100/100</span></div>
+                        <div class="hp-container"><div class="hp-fill player-hp-bar" id="p2-hp-bar"></div></div>
+                    </div>
+                </div>
+                <div class="character-zone">
+                    <div class="sprite" id="m2-sprite">👹</div>
+                    <div class="status-bar">
+                        <div class="bar-label"><span id="m2-name">獨眼怪</span><span id="m2-hp-txt">50/50</span></div>
+                        <div class="hp-container"><div class="hp-fill monster-hp-bar" id="m2-hp-bar"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="question-box" id="p2-q-box">載入題目中...</div>
+            <div class="input-area" id="p2-input-area"></div>
+        </div>
+    </div>
+
+    <div class="overlay-screen" id="start-screen">
+        <div class="start-title">⚔️ 標點符號打怪大對決 🔮</div>
+        <div class="instructions">
+            <h3>📜 遊戲規則說明：</h3>
+            <ul>
+                <li>本遊戲為<b>雙人對戰</b>，左邊為玩家1（騎士），右邊為玩家2（法師）。</li>
+                <li>請觀察上方題目區，點擊下方標點符號填入「___」空格。</li>
+                <li>若一題有多個空格，請<b>依序</b>點選填入。</li>
+                <li>填好後可按<b>【清除】</b>重選，確認無誤請按<b>【確定】</b>送出！</li>
+                <li><b>答對：</b>能對怪獸發動強力攻擊！擊敗怪獸會召喚更強的怪獸！</li>
+                <li><b>答錯：</b>會遭到怪獸反擊，扣減玩家自己的生命值(HP)。</li>
+                <li><b>連續答對 3 題 (Combo)：</b>會觸發神聖治療，<b>回復 HP 且提升攻擊力</b>！</li>
+            </ul>
+        </div>
+        <button class="big-play-btn" onclick="startGame()">⚔️ 開始戰鬥 ⚔️</button>
+    </div>
+
+    <div class="overlay-screen hidden" id="end-screen">
+        <div class="start-title" style="color:#ffd700;">👑 戰鬥結束 👑</div>
+        <div class="results-container">
+            <div class="result-card" style="border-color: var(--p1-color);">
+                <div id="p1-win-tag" class="winner-tag hidden">🏆 勝利者 🏆</div>
+                <h3>🧙‍♂️ 玩家 1 (騎士)</h3>
+                <div class="res-row"><span>最終得分：</span><span id="r-p1-score" style="color:#ffd700; font-weight:bold;">0</span></div>
+                <div class="res-row"><span>答對題數：</span><span id="r-p1-right" style="color:#2ecc71;">0</span></div>
+                <div class="res-row"><span>答錯題數：</span><span id="r-p1-wrong" style="color:#e74c3c;">0</span></div>
+                <div class="res-row"><span>打倒怪獸數：</span><span id="r-p1-kills">0</span></div>
+            </div>
+            <div class="result-card" style="border-color: var(--p2-color);">
+                <div id="p2-win-tag" class="winner-tag hidden">🏆 勝利者 🏆</div>
+                <h3>🧝‍♀️ 玩家 2 (法師)</h3>
+                <div class="res-row"><span>最終得分：</span><span id="r-p2-score" style="color:#ffd700; font-weight:bold;">0</span></div>
+                <div class="res-row"><span>答對題數：</span><span id="r-p2-right" style="color:#2ecc71;">0</span></div>
+                <div class="res-row"><span>答錯題數：</span><span id="r-p2-wrong" style="color:#e74c3c;">0</span></div>
+                <div class="res-row"><span>打倒怪獸數：</span><span id="r-p2-kills">0</span></div>
+            </div>
+        </div>
+        <button class="big-play-btn" onclick="resetGame()">🔄 再玩一次</button>
+    </div>
+</div>
+
+<script>
+    // --- 核心資料庫：30條適合小三的標點符號題目 ---
+    const questionBank = [
+        { q: "小明今天起得早___所以沒有遲到___", a: ["，", "。"] },
+        { q: "書包裡有課本___鉛筆盒___還有一個大蘋果___", a: ["、", "，", "。"] },
+        { q: "你今天功課寫完了嗎___", a: ["？"] },
+        { q: "哇___這幅畫畫得真漂亮啊___", a: ["！", "！"] },
+        { q: "老師對我們說______大家排隊進教室___", a: ["：", "「", "」"] },
+        { q: "我最喜歡看___西遊記___這本神話故事書___", a: ["《", "》", "。"] },
+        { q: "天上的星星不停閃爍___好像在對我眨眼睛___", a: ["，", "。"] },
+        { q: "花園裡開滿了玫瑰___菊花___百合等各種花卉___", a: ["、", "、", "。"] },
+        { q: "你喜歡吃蘋果___還是香蕉___", a: ["，", "？"] },
+        { q: "糟糕___我的錢包不見了___", a: ["！", "！"] },
+        { q: "媽媽去菜市場買了高麗菜___牛肉___魚和蝦子___", a: ["、", "、", "，", "。"] },
+        { q: "姐姐大聲喊______下雪了___快出來看啊___", a: ["：", "「", "！", "」"] },
+        { q: "我買了新鉛筆___妹妹買了新橡皮擦___", a: ["；", "。"] },
+        { q: "海灘上的貝殼真多啊___有紅的___綠的___紫的___數也數不完___", a: ["，", "、", "、", "……", "。"] },
+        { q: "上課鐘聲響了___同學們立刻安靜坐好___", a: ["，", "。"] },
+        { q: "科學家告訴我們___植物也是需要呼吸的___", a: ["：", "。"] },
+        { q: "弟弟問______爸爸什麼時候帶我們去動物園___", a: ["：", "「", "？」"] }, // 合併引號問號處理或分開，此處調整為簡單形式
+        { q: "桌上有字典___筆記本和三枝毛筆___", a: ["、", "。"] },
+        { q: "這裡的風景真美___真叫人流連忘返___", a: ["，", "。"] },
+        { q: "弟弟把零用錢存起來___哥哥把零用錢拿去買書___", a: ["；", "。"] },
+        { q: "今天到底是星期三___還是星期四___", a: ["，", "？"] },
+        { q: "這座山真高呀___差一點就能碰到雲朵了___", a: ["！", "。"] },
+        { q: "我很喜歡讀___小王子___這本書___", a: ["《", "》", "。"] },
+        { q: "天空中飄著各種形狀的雲朵___有的像綿羊___有的像小狗___", a: ["，", "；", "。"] },
+        { q: "果園裡有好多水果___有蘋果___梨子___桃子等等___", a: ["，", "、", "、", "……"] },
+        { q: "老師高興地說______你們這次表現得太棒了___", a: ["：", "「", "！」"] },
+        { q: "你怎麼能夠忘記帶課本呢___", a: ["？"] },
+        { q: "小狗在草地上跑來跑去___看起來非常興奮___", a: ["，", "。"] },
+        { q: "餐桌上擺滿了豐富的菜餚___有雞肉___青菜和蛋湯___", a: ["，", "、", "。"] },
+        { q: "遠處傳來一陣陣熱鬧的鼓聲___到底是發生了什麼事___", a: ["，", "？"] }
+    ];
+
+    const punctButtons = ["，", "。", "、", "……", "；", "：", "？", "！", "「", "」", "《", "》"];
+    const monsterSprites = ["👾", "👹", "🦇", "🐉", "👻", "🦁"];
+    const monsterNames = ["小火怪", "獨眼怪", "吸血蝙蝠", "遠古巨龍", "頑皮幽靈", "狂暴獅王"];
+
+    // 遊戲狀態控制
+    let isMuted = false;
+    let p1State, p2State;
+
+    // Web Audio API 音效產生器 (無需外部音訊檔)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if (isMuted) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (type === 'correct') { // 答對音效：輕快向上的和弦
+            osc.frequency.setValueAtTime(523.25, now); // C5
+            osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+            osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'wrong') { // 答錯音效：沉悶向下的低音
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(80, now + 0.3);
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'attack') { // 攻擊音效：白噪音與頻率滑落
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2);
+        } else if (type === 'victory') { // 勝利凱旋音
+            osc.frequency.setValueAtTime(523.25, now); // C5
+            osc.frequency.setValueAtTime(523.25, now + 0.1);
+            osc.frequency.setValueAtTime(523.25, now + 0.2);
+            osc.frequency.setValueAtTime(659.25, now + 0.3); // E5
+            osc.frequency.setValueAtTime(783.99, now + 0.4); // G5
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+            osc.start(now); osc.stop(now + 0.7);
+        }
+    }
+
+    // 初始化玩家狀態
+    function initPlayerState(id) {
+        return {
+            id: id,
+            hp: 100,
+            maxHp: 100,
+            score: 0,
+            combo: 0,
+            rightCount: 0,
+            wrongCount: 0,
+            killCount: 0,
+            currentMonster: { hp: 50, maxHp: 50, name: "小怪獸", sprite: "👾" },
+            qIdxList: [], // 隨洗題目索引
+            currentQIndex: 0,
+            userAnswers: []
+        };
+    }
+
+    // 開始遊戲
+    function startGame() {
+        document.getElementById('start-screen').classList.add('hidden');
+        p1State = initPlayerState(1);
+        p2State = initPlayerState(2);
+        
+        // 洗牌題目
+        p1State.qIdxList = [...Array(questionBank.length).keys()].sort(() => Math.random() - 0.5);
+        p2State.qIdxList = [...Array(questionBank.length).keys()].sort(() => Math.random() - 0.5);
+
+        // 生成按鍵區
+        buildInputArea(1);
+        buildInputArea(2);
+
+        // 載入第一題與怪獸
+        spawnMonster(p1State);
+        spawnMonster(p2State);
+        loadQuestion(p1State);
+        loadQuestion(p2State);
+
+        updateVisuals(p1State);
+        updateVisuals(p2State);
+    }
+
+    // 生成輸入介面 (12個標點符號 + 2個功能鈕)
+    function buildInputArea(pId) {
+        const container = document.getElementById(`p${pId}-input-area`);
+        container.innerHTML = "";
+        
+        // 標點按鈕
+        punctButtons.forEach(p => {
+            const btn = document.createElement('button');
+            btn.className = "btn-punct";
+            btn.innerText = p;
+            btn.onclick = () => handlePunctClick(pId, p);
+            container.appendChild(btn);
+        });
+
+        // 取消清除鈕
+        const clearBtn = document.createElement('button');
+        clearBtn.className = "btn-punct btn-control btn-clear";
+        clearBtn.innerText = "清除";
+        clearBtn.onclick = () => handleClear(pId);
+        container.appendChild(clearBtn);
+
+        // 確定送出鈕
+        const submitBtn = document.createElement('button');
+        submitBtn.className = "btn-punct btn-control btn-submit";
+        submitBtn.innerText = "確定";
+        submitBtn.onclick = () => handleSubmit(pId);
+        container.appendChild(submitBtn);
+    }
+
+    // 召喚新怪獸
+    function spawnMonster(pState) {
+        const mIdx = Math.min(pState.killCount, monsterSprites.length - 1);
+        pState.currentMonster.sprite = monsterSprites[mIdx];
+        pState.currentMonster.name = monsterNames[mIdx];
+        pState.currentMonster.maxHp = 50 + pState.killCount * 25; // 越後面血量越高
+        pState.currentMonster.hp = pState.currentMonster.maxHp;
+        
+        document.getElementById(`m${pState.id}-sprite`).innerText = pState.currentMonster.sprite;
+        document.getElementById(`m${pState.id}-name`).innerText = pState.currentMonster.name;
+    }
+
+    // 載入題目
+    function loadQuestion(pState) {
+        const qIdx = pState.qIdxList[pState.currentQIndex];
+        pState.currentQuestion = questionBank[qIdx];
+        pState.userAnswers = new Array(pState.currentQuestion.a.length).fill("");
+        
+        renderQuestionBox(pState);
+    }
+
+    // 渲染題目文字與填空處
+    function renderQuestionBox(pState) {
+        const qBox = document.getElementById(`p${pState.id}-q-box`);
+        const textParts = pState.currentQuestion.q.split("___");
+        qBox.innerHTML = "";
+
+        // 尋找當前該填寫哪一個格子的索引
+        let activeSlotIdx = pState.userAnswers.findIndex(ans => ans === "");
+        if (activeSlotIdx === -1) activeSlotIdx = pState.userAnswers.length - 1;
+
+        for (let i = 0; i < textParts.length; i++) {
+            qBox.appendChild(document.createTextNode(textParts[i]));
+            if (i < pState.currentQuestion.a.length) {
+                const slot = document.createElement('span');
+                slot.className = `q-slot ${i === activeSlotIdx ? 'active' : ''}`;
+                slot.innerText = pState.userAnswers[i] || "";
+                qBox.appendChild(slot);
+            }
+        }
+    }
+
+    // 處理標點點擊事件
+    function handlePunctClick(pId, punct) {
+        const pState = (pId === 1) ? p1State : p2State;
+        // 尋找第一個還沒填空的格子
+        const emptyIdx = pState.userAnswers.findIndex(ans => ans === "");
+        if (emptyIdx !== -1) {
+            pState.userAnswers[emptyIdx] = punct;
+            renderQuestionBox(pState);
+        }
+    }
+
+    // 處理清除按鈕
+    function handleClear(pId) {
+        const pState = (pId === 1) ? p1State : p2State;
+        pState.userAnswers = new Array(pState.currentQuestion.a.length).fill("");
+        renderQuestionBox(pState);
+    }
+
+    // 處理確定送出答案
+    function handleSubmit(pId) {
+        const pState = (pId === 1) ? p1State : p2State;
+        
+        // 檢查是否每個格子都有填寫
+        if (pState.userAnswers.includes("")) {
+            alert("請把所有格子的標點符號填完再送出喔！");
+            return;
+        }
+
+        // 判斷對錯
+        let isCorrect = true;
+        for (let i = 0; i < pState.currentQuestion.a.length; i++) {
+            if (pState.userAnswers[i] !== pState.currentQuestion.a[i]) {
+                isCorrect = false;
+                break;
+            }
+        }
+
+        if (isCorrect) {
+            // 答對邏輯
+            playSound('correct');
+            pState.rightCount++;
+            pState.combo++;
+            
+            // 計算攻擊力 (基礎 25 點，依據連擊疊加)
+            let dmg = 25;
+            let comboBonusTxt = "";
+            if (pState.combo >= 3) {
+                dmg += 15;
+                // 連擊補血機制
+                pState.hp = Math.min(pState.maxHp, pState.hp + 20);
+                showPopEffect(pState.id, 'player', '+20 HP', 'heal-pop');
+                comboBonusTxt = " (💥Combo加成!)";
+            }
+            pState.score += (10 + pState.combo * 2);
+
+            // 扣減怪獸血量
+            pState.currentMonster.hp = Math.max(0, pState.currentMonster.hp - dmg);
+            showPopEffect(pState.id, 'monster', `-${dmg}${comboBonusTxt}`);
+            
+            // 觸發攻擊與受傷動畫
+            triggerAnimate(pState.id, 'attack');
+
+            // 檢查怪獸是否死亡
+            if (pState.currentMonster.hp === 0) {
+                pState.killCount++;
+                setTimeout(() => {
+                    spawnMonster(pState);
+                    updateVisuals(pState);
+                }, 500);
+            }
+        } else {
+            // 答錯邏輯
+            playSound('wrong');
+            pState.wrongCount++;
+            pState.combo = 0; // 中斷連擊
+            
+            // 玩家扣血
+            const dmgToPlayer = 20;
+            pState.hp = Math.max(0, pState.hp - dmgToPlayer);
+            showPopEffect(pState.id, 'player', `-${dmgToPlayer}`);
+            triggerAnimate(pState.id, 'hurt');
+
+            // 檢查玩家是否戰敗
+            if (pState.hp === 0) {
+                endGame();
+                return;
+            }
+        }
+
+        // 前進到下一題
+        pState.currentQIndex++;
+        // 題庫若播完了就重新洗牌重來
+        if (pState.currentQIndex >= pState.qIdxList.length) {
+            pState.qIdxList = [...Array(questionBank.length).keys()].sort(() => Math.random() - 0.5);
+            pState.currentQIndex = 0;
+        }
+
+        loadQuestion(pState);
+        updateVisuals(pState);
+    }
+
+    // 觸發物理動畫效果
+    function triggerAnimate(pId, type) {
+        const pSprite = document.getElementById(`p${pId}-sprite`);
+        const mSprite = document.getElementById(`m${pId}-sprite`);
+        
+        if (type === 'attack') {
+            playSound('attack');
+            pSprite.classList.add(pId === 1 ? 'attack-animation' : 'p2-attack');
+            setTimeout(() => pSprite.classList.remove('attack-animation', 'p2-attack'), 150);
+            
+            setTimeout(() => {
+                mSprite.classList.add('hurt-animation');
+                setTimeout(() => mSprite.classList.remove('hurt-animation'), 300);
+            }, 100);
+        } else if (type === 'hurt') {
+            mSprite.classList.add(pId === 1 ? 'p2-attack' : 'attack-animation'); // 換怪獸撞玩家
+            setTimeout(() => mSprite.classList.remove('attack-animation', 'p2-attack'), 150);
+
+            setTimeout(() => {
+                pSprite.classList.add('hurt-animation');
+                setTimeout(() => pSprite.classList.remove('hurt-animation'), 300);
+            }, 100);
+        }
+    }
+
+    // 顯示漂浮文字傷害數字
+    function showPopEffect(pId, target, text, customClass = '') {
+        const arena = document.querySelectorAll('.rpg-arena')[pId - 1];
+        const pop = document.createElement('div');
+        pop.className = `damage-pop ${customClass}`;
+        pop.innerText = text;
+        
+        if (target === 'player') {
+            pop.style.left = '25%'; pop.style.top = '30%';
+        } else {
+            pop.style.left = '75%'; pop.style.top = '30%';
+        }
+        
+        arena.appendChild(pop);
+        setTimeout(() => pop.remove(), 800);
+    }
+
+    // 更新畫面狀態顯示 (血量條、分數等)
+    function updateVisuals(pState) {
+        const id = pState.id;
+        // 分數與連擊
+        document.getElementById(`p${id}-score`).innerText = pState.score;
+        const comboTag = document.getElementById(`p${id}-combo-tag`);
+        if (pState.combo >= 3) {
+            comboTag.innerText = `${pState.combo} 連擊 🔥`;
+            comboTag.style.display = "inline-block";
+        } else {
+            comboTag.style.display = "none";
+        }
+
+        // 玩家血條
+        const pHpPercent = (pState.hp / pState.maxHp) * 100;
+        document.getElementById(`p${id}-hp-bar`).style.width = `${pHpPercent}%`;
+        document.getElementById(`p${id}-hp-txt`).innerText = `${pState.hp}/${pState.maxHp}`;
+
+        // 怪獸血條
+        const mHpPercent = (pState.currentMonster.hp / pState.currentMonster.maxHp) * 100;
+        document.getElementById(`m${id}-hp-bar`).style.width = `${mHpPercent}%`;
+        document.getElementById(`m${id}-hp-txt`).innerText = `${pState.currentMonster.hp}/${pState.currentMonster.maxHp}`;
+    }
+
+    // 遊戲結束結算
+    function endGame() {
+        playSound('victory');
+        document.getElementById('end-screen').classList.remove('hidden');
+
+        // 寫入結算數據
+        document.getElementById('r-p1-score').innerText = p1State.score;
+        document.getElementById('r-p1-right').innerText = p1State.rightCount;
+        document.getElementById('r-p1-wrong').innerText = p1State.wrongCount;
+        document.getElementById('r-p1-kills').innerText = p1State.killCount;
+
+        document.getElementById('r-p2-score').innerText = p2State.score;
+        document.getElementById('r-p2-right').innerText = p2State.rightCount;
+        document.getElementById('r-p2-wrong').innerText = p2State.wrongCount;
+        document.getElementById('r-p2-kills').innerText = p2State.killCount;
+
+        // 判斷勝負
+        document.getElementById('p1-win-tag').classList.add('hidden');
+        document.getElementById('p2-win-tag').classList.add('hidden');
+        if (p1State.score > p2State.score) {
+            document.getElementById('p1-win-tag').classList.remove('hidden');
+        } else if (p2State.score > p1State.score) {
+            document.getElementById('p2-win-tag').classList.remove('hidden');
+        }
+    }
+
+    function resetGame() {
+        document.getElementById('end-screen').classList.add('hidden');
+        startGame();
+    }
+
+    // 靜音控制
+    function toggleMute() {
+        isMuted = !isMuted;
+        document.getElementById('mute-btn').innerText = isMuted ? "🔇 聲音：關" : "🔊 聲音：開";
+    }
+
+    // 電子白板全螢幕功能
+    function toggleFullscreen() {
+        const elem = document.getElementById('game-container');
+        if (!document.fullscreenElement) {
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+            else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+</script>
+
+</body>
+</html>
